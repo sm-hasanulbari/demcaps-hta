@@ -308,20 +308,19 @@ query_pubmed <- function(
   if (is.null(fetch_resp) ||
       httr::status_code(fetch_resp) != 200) return(NULL)
   
-  articles <- jsonlite::fromJSON(
+  articles  <- jsonlite::fromJSON(
     httr::content(fetch_resp, as = "text",
                   encoding = "UTF-8"),
     flatten = TRUE)$result
-  
   pmids_ret <- articles$uids
   
   results <- lapply(pmids_ret, function(pmid) {
     art <- articles[[pmid]]
     data.frame(
       pmid    = pmid,
-      title   = if (!is.null(art$title))  art$title  else NA,
-      journal = if (!is.null(art$source)) art$source else NA,
-      year    = if (!is.null(art$pubdate))art$pubdate else NA,
+      title   = if (!is.null(art$title))   art$title   else NA,
+      journal = if (!is.null(art$source))  art$source  else NA,
+      year    = if (!is.null(art$pubdate)) art$pubdate else NA,
       authors = if (!is.null(art$authors) &&
                     is.data.frame(art$authors) &&
                     nrow(art$authors) > 0)
@@ -344,6 +343,15 @@ query_who_dementia <- function() {
   
   cat("Querying WHO GHO...\n")
   
+  fallback <- data.frame(
+    region     = c("Europe", "Netherlands",
+                   "Global", "High-income"),
+    year       = c(2021, 2021, 2021, 2021),
+    prevalence = c(7.7, 7.5, 5.8, 7.2),
+    source     = "WHO 2021 (published estimate)",
+    stringsAsFactors = FALSE
+  )
+  
   resp <- tryCatch(
     httr::GET(
       "https://ghoapi.azureedge.net/api/NEUROLOGICAL_DEMENTIAPREVALENCE",
@@ -352,32 +360,30 @@ query_who_dementia <- function() {
     error = function(e) { message(e$message); NULL }
   )
   
-  fallback <- data.frame(
-    region     = c("Europe", "Netherlands", "Global", "High-income"),
-    year       = c(2021, 2021, 2021, 2021),
-    prevalence = c(7.7, 7.5, 5.8, 7.2),
-    source     = "WHO 2021 (published estimate)",
-    stringsAsFactors = FALSE
-  )
-  
   if (is.null(resp) || httr::status_code(resp) != 200) {
     message("WHO API unavailable — using published estimates.")
     return(fallback)
   }
   
-  who_raw <- jsonlite::fromJSON(
-    httr::content(resp, as = "text", encoding = "UTF-8"),
-    flatten = TRUE)
+  who_raw <- tryCatch(
+    jsonlite::fromJSON(
+      httr::content(resp, as = "text", encoding = "UTF-8"),
+      flatten = TRUE),
+    error = function(e) NULL
+  )
   
-  if (!is.null(who_raw$value) && nrow(who_raw$value) > 0) {
+  if (!is.null(who_raw) &&
+      !is.null(who_raw$value) &&
+      nrow(who_raw$value) > 0) {
     df <- who_raw$value %>%
-      select(any_of(c("SpatialDim", "TimeDim", "NumericValue"))) %>%
+      select(any_of(c("SpatialDim", "TimeDim",
+                      "NumericValue"))) %>%
       filter(!is.na(NumericValue))
     cat(sprintf("WHO: %d records.\n", nrow(df)))
     return(df)
   }
   
-  message("WHO parse failed — fallback.")
+  message("WHO parse failed — using fallback.")
   fallback
 }
 
@@ -389,6 +395,15 @@ query_eurostat_population <- function() {
   
   cat("Querying Eurostat...\n")
   
+  fallback <- data.frame(
+    year       = 2020:2024,
+    pop_65plus = c(3340000, 3390000,
+                   3440000, 3490000, 3540000),
+    country    = "Netherlands",
+    source     = "CBS/Eurostat (published estimate)",
+    stringsAsFactors = FALSE
+  )
+  
   resp <- tryCatch(
     httr::GET(paste0(
       "https://ec.europa.eu/eurostat/api/dissemination/",
@@ -398,38 +413,46 @@ query_eurostat_population <- function() {
     error = function(e) { message(e$message); NULL }
   )
   
-  fallback <- data.frame(
-    year       = 2020:2024,
-    pop_65plus = c(3340000, 3390000, 3440000, 3490000, 3540000),
-    country    = "Netherlands",
-    source     = "CBS/Eurostat (published estimate)",
-    stringsAsFactors = FALSE
-  )
-  
   if (is.null(resp) || httr::status_code(resp) != 200) {
     message("Eurostat unavailable — using fallback.")
     return(fallback)
   }
   
-  raw <- jsonlite::fromJSON(
-    httr::content(resp, as = "text", encoding = "UTF-8"),
-    flatten = TRUE)
+  raw <- tryCatch(
+    jsonlite::fromJSON(
+      httr::content(resp, as = "text", encoding = "UTF-8"),
+      flatten = TRUE),
+    error = function(e) NULL
+  )
   
-  if (!is.null(raw$value)) {
-    years  <- names(raw$dimension$time$category$label)
-    values <- unlist(raw$value)
-    df <- data.frame(
-      year       = as.integer(years),
-      pop_65plus = as.numeric(values),
-      country    = "Netherlands",
-      source     = "Eurostat API",
-      stringsAsFactors = FALSE
-    ) %>% filter(!is.na(pop_65plus))
-    cat(sprintf("Eurostat: %d years.\n", nrow(df)))
-    return(df)
+  if (!is.null(raw) && !is.null(raw$value)) {
+    tryCatch({
+      years  <- names(raw$dimension$time$category$label)
+      values <- unlist(raw$value)
+      
+      # Match lengths safely
+      n      <- min(length(years), length(values))
+      if (n == 0) stop("Empty Eurostat response")
+      years  <- years[seq_len(n)]
+      values <- values[seq_len(n)]
+      
+      df <- data.frame(
+        year       = as.integer(years),
+        pop_65plus = as.numeric(values),
+        country    = "Netherlands",
+        source     = "Eurostat API",
+        stringsAsFactors = FALSE
+      )
+      df <- df[!is.na(df$pop_65plus), ]
+      cat(sprintf("Eurostat: %d years.\n", nrow(df)))
+      return(df)
+    }, error = function(e) {
+      message("Eurostat parse error — using fallback: ", e$message)
+      return(fallback)
+    })
   }
   
-  message("Eurostat parse failed — fallback.")
+  message("Eurostat empty — using fallback.")
   fallback
 }
 
@@ -465,10 +488,11 @@ pull_all_evidence <- function(use_cache = TRUE) {
   trial_summary <- summarise_trial_evidence(trials)
   
   cat("\n=== Pull Complete ===\n")
-  cat(sprintf("Trials: %d | PubMed psych: %d | PubMed tech: %d\n",
-              nrow(trials),
-              if (!is.null(pubmed_psych)) nrow(pubmed_psych) else 0,
-              if (!is.null(pubmed_tech))  nrow(pubmed_tech)  else 0
+  cat(sprintf(
+    "Trials: %d | PubMed psych: %d | PubMed tech: %d\n",
+    nrow(trials),
+    if (!is.null(pubmed_psych)) nrow(pubmed_psych) else 0,
+    if (!is.null(pubmed_tech))  nrow(pubmed_tech)  else 0
   ))
   
   invisible(list(

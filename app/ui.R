@@ -31,24 +31,25 @@ ui <- dashboardPage(
     width = 220,
     sidebarMenu(
       id = "tabs",
-      menuItem("Overview",       tabName = "tab_overview",
+      menuItem("Overview",      tabName = "tab_overview",
                icon = icon("house")),
-      menuItem("Model Inputs",   tabName = "tab_inputs",
+      menuItem("Model Inputs",  tabName = "tab_inputs",
                icon = icon("sliders")),
-      menuItem("Base-Case",      tabName = "tab_basecase",
+      menuItem("Base-Case",     tabName = "tab_basecase",
                icon = icon("table")),
-      menuItem("PSA",            tabName = "tab_psa",
+      menuItem("PSA",           tabName = "tab_psa",
                icon = icon("chart-line")),
-      menuItem("Sensitivity",    tabName = "tab_sensitivity",
+      menuItem("Sensitivity",   tabName = "tab_sensitivity",
                icon = icon("tornado")),
-      menuItem("Scenarios",      tabName = "tab_scenarios",
+      menuItem("Scenarios",     tabName = "tab_scenarios",
                icon = icon("layer-group")),
-      menuItem("Disease Trace",  tabName = "tab_trace",
+      menuItem("Disease Trace", tabName = "tab_trace",
                icon = icon("chart-area")),
-      menuItem("References",     tabName = "tab_refs",
+      menuItem("Evidence",      tabName = "tab_evidence",
+               icon = icon("database")),
+      menuItem("References",    tabName = "tab_refs",
                icon = icon("book"))
     ),
-    
     tags$hr(),
     tags$div(
       style = "padding: 10px; font-size: 11px; color: #AAB7B8;",
@@ -63,7 +64,6 @@ ui <- dashboardPage(
   # --------------------------------------------------------------------------
   dashboardBody(
     
-    # Custom CSS
     tags$head(tags$style(HTML("
       .skin-black .main-header .logo { background-color: #1C2833; }
       .skin-black .main-header .navbar { background-color: #1C2833; }
@@ -92,17 +92,15 @@ ui <- dashboardPage(
                     tags$div(
                       tags$h4("About this model"),
                       tags$p("The DEM-CAPS model is a Markov state-transition
-                      health-economic model evaluating psychosocial and
-                      technology-based dementia support interventions
-                      against Standard of Care (SoC) over a 20-year
-                      lifetime horizon."),
+                health-economic model evaluating psychosocial and
+                technology-based dementia support interventions
+                against Standard of Care (SoC) over a 20-year
+                lifetime horizon."),
                       tags$h4("Health States"),
                       tags$p("Five mutually exclusive states based on MMSE
-                      severity classification",
-                             tags$sup(
-                               tags$span(class = "ref-badge",
-                                         title = "Winblad et al. J Intern Med. 2004",
-                                         "1")),
+                severity classification",
+                             tags$sup(tags$span(class = "ref-badge",
+                                                title = "Winblad et al. J Intern Med. 2004", "1")),
                              ":"),
                       tags$ul(
                         tags$li("MCI — Mild Cognitive Impairment (MMSE 24-30)"),
@@ -116,23 +114,20 @@ ui <- dashboardPage(
                         tags$li(tags$b("Psychosocial:"),
                                 " RR = 0.82 (Olazaran et al.)",
                                 tags$sup(tags$span(class = "ref-badge",
-                                                   title = "Olazaran et al. 2010",
-                                                   "7"))),
+                                                   title = "Olazaran et al. 2010", "7"))),
                         tags$li(tags$b("Technology:"),
                                 " RR = 0.88 (Imbeault et al.)",
                                 tags$sup(tags$span(class = "ref-badge",
-                                                   title = "Imbeault et al. 2014",
-                                                   "9"))),
+                                                   title = "Imbeault et al. 2014", "9"))),
                         tags$li(tags$b("Combination:"),
                                 " RR = 0.82 x 0.88 (additive assumption)")
                       ),
                       tags$h4("Perspective & Discounting"),
                       tags$p("Societal perspective (medical + informal care costs).
-                      Discount rates: costs 4%, effects 1.5% per Dutch
-                      pharmacoeconomic guidelines",
+                Discount rates: costs 4%, effects 1.5% per Dutch
+                pharmacoeconomic guidelines",
                              tags$sup(tags$span(class = "ref-badge",
-                                                title = "ZIN Kostenhandleiding 2024",
-                                                "3")), ".")
+                                                title = "ZIN Kostenhandleiding 2024", "3")), ".")
                     )
                 )
               )
@@ -155,7 +150,6 @@ ui <- dashboardPage(
                                 min = 0, max = 100, value = 10, step = 1),
                     uiOutput("dist_check_msg")
                 ),
-                
                 box(width = 4, title = "Intervention Parameters",
                     status = "primary", solidHeader = TRUE,
                     sliderInput("i_rr_psych",
@@ -175,7 +169,6 @@ ui <- dashboardPage(
                                 min = 0, max = 0.2,
                                 value = 0.02, step = 0.01)
                 ),
-                
                 box(width = 4, title = "Model Settings",
                     status = "primary", solidHeader = TRUE,
                     sliderInput("i_horizon",
@@ -196,22 +189,22 @@ ui <- dashboardPage(
                                 value = 1000, step = 500),
                     tags$br(),
                     actionButton("run_model", "Run Base-Case",
-                                 class  = "btn-success btn-block",
-                                 icon   = icon("play"),
-                                 style  = "font-weight: bold;")
+                                 class = "btn-success btn-block",
+                                 icon  = icon("play"),
+                                 style = "font-weight: bold;")
                 )
               )
       ),
       
       # -----------------------------------------------------------------------
-      # TAB 3: BASE-CASE RESULTS
+      # TAB 3: BASE-CASE
       # -----------------------------------------------------------------------
       tabItem(tabName = "tab_basecase",
               fluidRow(
-                valueBoxOutput("vbox_icer_psych",   width = 3),
-                valueBoxOutput("vbox_icer_tech",    width = 3),
-                valueBoxOutput("vbox_icer_combo",   width = 3),
-                valueBoxOutput("vbox_nmb_psych",    width = 3)
+                valueBoxOutput("vbox_icer_psych", width = 3),
+                valueBoxOutput("vbox_icer_tech",  width = 3),
+                valueBoxOutput("vbox_icer_combo", width = 3),
+                valueBoxOutput("vbox_nmb_psych",  width = 3)
               ),
               fluidRow(
                 box(width = 12, title = "Base-Case Results Table",
@@ -239,8 +232,7 @@ ui <- dashboardPage(
                 box(width = 12, status = "warning",
                     tags$p(icon("triangle-exclamation"),
                            tags$b(" Note:"),
-                           " PSA with 1000+ simulations may take 30-60 seconds.
-                    Click the button below when ready."),
+                           " PSA with 1000+ simulations may take 30-60 seconds."),
                     actionButton("run_psa_btn", "Run PSA",
                                  class = "btn-warning btn-lg",
                                  icon  = icon("play"))
@@ -274,7 +266,8 @@ ui <- dashboardPage(
               fluidRow(
                 box(width = 12, title = "Tornado Diagram",
                     status = "primary", solidHeader = TRUE,
-                    withSpinner(plotlyOutput("plt_tornado", height = "500px"),
+                    withSpinner(plotlyOutput("plt_tornado",
+                                             height = "500px"),
                                 color = "#1ABC9C")
                 )
               ),
@@ -292,7 +285,8 @@ ui <- dashboardPage(
       tabItem(tabName = "tab_scenarios",
               fluidRow(
                 box(width = 12,
-                    actionButton("run_scenarios_btn", "Run Scenario Analysis",
+                    actionButton("run_scenarios_btn",
+                                 "Run Scenario Analysis",
                                  class = "btn-info btn-lg",
                                  icon  = icon("play"))
                 )
@@ -300,7 +294,8 @@ ui <- dashboardPage(
               fluidRow(
                 box(width = 12, title = "Scenario Results",
                     status = "primary", solidHeader = TRUE,
-                    withSpinner(DTOutput("tbl_scenarios"), color = "#1ABC9C")
+                    withSpinner(DTOutput("tbl_scenarios"),
+                                color = "#1ABC9C")
                 )
               )
       ),
@@ -311,8 +306,7 @@ ui <- dashboardPage(
       tabItem(tabName = "tab_trace",
               fluidRow(
                 box(width = 12, status = "primary",
-                    selectInput("trace_arm",
-                                "Select Strategy:",
+                    selectInput("trace_arm", "Select Strategy:",
                                 choices  = c("SoC", "Psychosocial",
                                              "Technology", "Combination"),
                                 selected = "SoC")
@@ -321,14 +315,115 @@ ui <- dashboardPage(
               fluidRow(
                 box(width = 12, title = "State Occupancy Over Time",
                     status = "primary", solidHeader = TRUE,
-                    withSpinner(plotlyOutput("plt_trace", height = "450px"),
+                    withSpinner(plotlyOutput("plt_trace",
+                                             height = "450px"),
                                 color = "#1ABC9C")
                 )
               )
       ),
       
       # -----------------------------------------------------------------------
-      # TAB 8: REFERENCES
+      # TAB 8: EVIDENCE
+      # -----------------------------------------------------------------------
+      tabItem(tabName = "tab_evidence",
+              fluidRow(
+                box(width = 12, status = "primary",
+                    tags$p(
+                      icon("circle-info"),
+                      tags$b(" Live data from ClinicalTrials.gov,
+                      PubMed, WHO and Eurostat."),
+                      " Click Refresh to pull latest evidence.
+                Cached data used by default."
+                    ),
+                    actionButton("run_evidence_btn",
+                                 "Refresh Evidence",
+                                 class = "btn-primary btn-lg",
+                                 icon  = icon("rotate")),
+                    tags$span(style = "margin-left:15px;",
+                              uiOutput("evidence_last_updated"))
+                )
+              ),
+              fluidRow(
+                valueBoxOutput("vbox_n_trials",   width = 3),
+                valueBoxOutput("vbox_n_rct",      width = 3),
+                valueBoxOutput("vbox_n_enrolled", width = 3),
+                valueBoxOutput("vbox_n_pubmed",   width = 3)
+              ),
+              fluidRow(
+                tabBox(width = 12, id = "evidence_tabs",
+                       tabPanel("Clinical Trials",
+                                icon = icon("flask"),
+                                fluidRow(
+                                  column(4,
+                                         selectInput("ev_category",
+                                                     "Filter by Category:",
+                                                     choices = c("All",
+                                                                 "Psychosocial interventions",
+                                                                 "Technology interventions",
+                                                                 "Combination interventions",
+                                                                 "Caregiver support",
+                                                                 "MCI interventions"),
+                                                     selected = "All")
+                                  ),
+                                  column(4,
+                                         selectInput("ev_status",
+                                                     "Filter by Status:",
+                                                     choices  = c("All", "COMPLETED",
+                                                                  "ACTIVE_NOT_RECRUITING"),
+                                                     selected = "All")
+                                  ),
+                                  column(4,
+                                         selectInput("ev_phase",
+                                                     "Filter by Phase:",
+                                                     choices  = c("All", "Phase 2",
+                                                                  "Phase 3", "Phase 4"),
+                                                     selected = "All")
+                                  )
+                                ),
+                                withSpinner(DTOutput("tbl_trials"),
+                                            color = "#1ABC9C")
+                       ),
+                       tabPanel("Evidence Summary",
+                                icon = icon("chart-bar"),
+                                withSpinner(DTOutput("tbl_evidence_summary"),
+                                            color = "#1ABC9C")
+                       ),
+                       tabPanel("PubMed Articles",
+                                icon = icon("book-open"),
+                                fluidRow(
+                                  column(6,
+                                         withSpinner(DTOutput("tbl_pubmed_psych"),
+                                                     color = "#1ABC9C")
+                                  ),
+                                  column(6,
+                                         withSpinner(DTOutput("tbl_pubmed_tech"),
+                                                     color = "#1ABC9C")
+                                  )
+                                )
+                       ),
+                       tabPanel("WHO & Eurostat",
+                                icon = icon("globe"),
+                                fluidRow(
+                                  box(width = 6,
+                                      title = "WHO Dementia Prevalence",
+                                      status = "primary", solidHeader = TRUE,
+                                      withSpinner(DTOutput("tbl_who"),
+                                                  color = "#1ABC9C")
+                                  ),
+                                  box(width = 6,
+                                      title = "Eurostat Population (NL, 65+)",
+                                      status = "info", solidHeader = TRUE,
+                                      withSpinner(DTOutput("tbl_eurostat"),
+                                                  color = "#1ABC9C")
+                                  )
+                                )
+                       )
+                )
+              )
+      ),
+      
+      # -----------------------------------------------------------------------
+      # TAB 9: REFERENCES
       # -----------------------------------------------------------------------
       tabItem(tabName = "tab_refs",
               fluidRow(

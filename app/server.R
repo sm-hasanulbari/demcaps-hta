@@ -1,8 +1,6 @@
 # =============================================================================
 # DEM-CAPS Health-Economic Model
 # File: app/server.R
-# BUG FIX: No more global mutations via assign()
-# All parameters passed explicitly as function arguments
 # =============================================================================
 
 library(shiny)
@@ -21,7 +19,7 @@ source("model/visualizations.R")
 server <- function(input, output, session) {
   
   # --------------------------------------------------------------------------
-  # REACTIVE: Initial state distribution from sliders
+  # REACTIVE: Initial state distribution
   # --------------------------------------------------------------------------
   init_dist_r <- reactive({
     vals <- c(
@@ -31,12 +29,11 @@ server <- function(input, output, session) {
       Severe_AD   = input$i_severe   / 100,
       Death       = 0
     )
-    total        <- sum(vals)
+    total         <- sum(vals)
     vals["Death"] <- max(0, 1 - total)
     vals / sum(vals)
   })
   
-  # Validation message under sliders
   output$dist_check_msg <- renderUI({
     total <- input$i_mci + input$i_mild +
       input$i_moderate + input$i_severe
@@ -44,7 +41,7 @@ server <- function(input, output, session) {
       tags$div(
         style = "color:#E74C3C; font-size:11px; font-weight:600;",
         icon("triangle-exclamation"),
-        paste0(" Sum = ", total, "% (auto-normalised to 100%)")
+        paste0(" Sum = ", total, "% (auto-normalised)")
       )
     } else {
       tags$div(
@@ -56,31 +53,25 @@ server <- function(input, output, session) {
   
   # --------------------------------------------------------------------------
   # REACTIVE: Base-case model
-  # FIX: parameters passed as arguments, not written to global environment
   # --------------------------------------------------------------------------
   model_results <- eventReactive(input$run_model, {
-    
-    w <- Waiter$new(
-      html = tagList(
-        spin_loaders(15, color = "#1ABC9C"),
-        tags$br(),
-        tags$span(style = "color:#FFFFFF; font-size:14px;",
-                  "Running base-case model...")
-      )
-    )
+    w <- Waiter$new(html = tagList(
+      spin_loaders(15, color = "#1ABC9C"),
+      tags$br(),
+      tags$span(style = "color:#FFFFFF; font-size:14px;",
+                "Running base-case model...")
+    ))
     w$show()
     on.exit(w$hide())
     
-    # FIX: override model globals safely for this session only
-    # by temporarily assigning within the reactive scope
     old_vals <- list(
-      rr_psych    = rr_psych_progression,
-      rr_tech     = rr_tech_progression,
-      disc_c      = discount_costs,
-      disc_e      = discount_effects,
-      n_cyc       = n_cycles,
-      u_p         = u_gain_psych,
-      u_t         = u_gain_tech
+      rr_psych = rr_psych_progression,
+      rr_tech  = rr_tech_progression,
+      disc_c   = discount_costs,
+      disc_e   = discount_effects,
+      n_cyc    = n_cycles,
+      u_p      = u_gain_psych,
+      u_t      = u_gain_tech
     )
     
     rr_psych_progression  <<- input$i_rr_psych
@@ -94,7 +85,6 @@ server <- function(input, output, session) {
     
     result <- run_full_model(init_dist = init_dist_r())
     
-    # Restore original values after run
     rr_psych_progression  <<- old_vals$rr_psych
     rr_tech_progression   <<- old_vals$rr_tech
     rr_combo_progression  <<- old_vals$rr_psych * old_vals$rr_tech
@@ -105,26 +95,20 @@ server <- function(input, output, session) {
     u_gain_tech           <<- old_vals$u_t
     
     result
-    
   }, ignoreNULL = FALSE)
   
   # --------------------------------------------------------------------------
   # REACTIVE: PSA
   # --------------------------------------------------------------------------
   psa_results <- eventReactive(input$run_psa_btn, {
-    
-    w <- Waiter$new(
-      html = tagList(
-        spin_loaders(15, color = "#1ABC9C"),
-        tags$br(),
-        tags$span(style = "color:#FFFFFF; font-size:14px;",
-                  paste("Running", input$i_n_sim,
-                        "PSA simulations..."))
-      )
-    )
+    w <- Waiter$new(html = tagList(
+      spin_loaders(15, color = "#1ABC9C"),
+      tags$br(),
+      tags$span(style = "color:#FFFFFF; font-size:14px;",
+                paste("Running", input$i_n_sim, "PSA simulations..."))
+    ))
     w$show()
     on.exit(w$hide())
-    
     run_psa(n_sim     = input$i_n_sim,
             init_dist = init_dist_r(),
             seed      = 42)
@@ -134,14 +118,12 @@ server <- function(input, output, session) {
   # REACTIVE: DSA
   # --------------------------------------------------------------------------
   dsa_results <- eventReactive(input$run_dsa_btn, {
-    w <- Waiter$new(
-      html = tagList(
-        spin_loaders(15, color = "#1ABC9C"),
-        tags$br(),
-        tags$span(style = "color:#FFFFFF; font-size:14px;",
-                  "Running sensitivity analysis...")
-      )
-    )
+    w <- Waiter$new(html = tagList(
+      spin_loaders(15, color = "#1ABC9C"),
+      tags$br(),
+      tags$span(style = "color:#FFFFFF; font-size:14px;",
+                "Running sensitivity analysis...")
+    ))
     w$show()
     on.exit(w$hide())
     run_dsa(init_dist = init_dist_r())
@@ -151,14 +133,12 @@ server <- function(input, output, session) {
   # REACTIVE: Scenarios
   # --------------------------------------------------------------------------
   scenario_results <- eventReactive(input$run_scenarios_btn, {
-    w <- Waiter$new(
-      html = tagList(
-        spin_loaders(15, color = "#1ABC9C"),
-        tags$br(),
-        tags$span(style = "color:#FFFFFF; font-size:14px;",
-                  "Running scenario analysis...")
-      )
-    )
+    w <- Waiter$new(html = tagList(
+      spin_loaders(15, color = "#1ABC9C"),
+      tags$br(),
+      tags$span(style = "color:#FFFFFF; font-size:14px;",
+                "Running scenario analysis...")
+    ))
     w$show()
     on.exit(w$hide())
     run_scenarios()
@@ -198,7 +178,8 @@ server <- function(input, output, session) {
     res <- model_results()$results
     nmb <- res$NMB_20k[res$Arm == "Psychosocial"]
     valueBox(
-      paste0("EUR ", formatC(round(nmb), format = "d", big.mark = ",")),
+      paste0("EUR ", formatC(round(nmb),
+                             format = "d", big.mark = ",")),
       "NMB Psychosocial @ EUR 20k",
       icon  = icon("euro-sign"),
       color = if (nmb > 0) "green" else "red"
@@ -209,7 +190,7 @@ server <- function(input, output, session) {
   # BASE-CASE TABLE
   # --------------------------------------------------------------------------
   output$tbl_basecase <- renderDT({
-    res <- model_results()$results
+    res             <- model_results()$results
     res$Total_Cost  <- round(res$Total_Cost)
     res$Total_QALY  <- round(res$Total_QALY, 3)
     res$Inc_Cost    <- round(res$Inc_Cost)
@@ -218,15 +199,12 @@ server <- function(input, output, session) {
     res$NMB_20k     <- round(res$NMB_20k)
     res$NMB_50k     <- round(res$NMB_50k)
     res$NMB_80k     <- round(res$NMB_80k)
-    
-    datatable(
-      res,
-      options  = list(pageLength = 10, scrollX = TRUE),
-      rownames = FALSE
+    datatable(res,
+              options  = list(pageLength = 10, scrollX = TRUE),
+              rownames = FALSE
     ) %>%
-      formatCurrency(c("Total_Cost", "Inc_Cost",
-                       "ICER", "NMB_20k",
-                       "NMB_50k", "NMB_80k"),
+      formatCurrency(c("Total_Cost", "Inc_Cost", "ICER",
+                       "NMB_20k", "NMB_50k", "NMB_80k"),
                      currency = "EUR ", digits = 0)
   })
   
@@ -265,10 +243,9 @@ server <- function(input, output, session) {
   
   output$tbl_dsa <- renderDT({
     req(dsa_results())
-    datatable(
-      dsa_results(),
-      options  = list(pageLength = 15, scrollX = TRUE),
-      rownames = FALSE
+    datatable(dsa_results(),
+              options  = list(pageLength = 15, scrollX = TRUE),
+              rownames = FALSE
     )
   })
   
@@ -277,10 +254,9 @@ server <- function(input, output, session) {
   # --------------------------------------------------------------------------
   output$tbl_scenarios <- renderDT({
     req(scenario_results())
-    datatable(
-      scenario_results(),
-      options  = list(pageLength = 20, scrollX = TRUE),
-      rownames = FALSE
+    datatable(scenario_results(),
+              options  = list(pageLength = 20, scrollX = TRUE),
+              rownames = FALSE
     )
   })
   
@@ -298,4 +274,185 @@ server <- function(input, output, session) {
                arm = input$trace_arm)
   })
   
-}
+  # --------------------------------------------------------------------------
+  # EVIDENCE TAB
+  # --------------------------------------------------------------------------
+  evidence_data <- reactiveVal(NULL)
+  
+  empty_dt <- function(msg = "Click Refresh Evidence to load data") {
+    datatable(
+      data.frame(Message = msg),
+      rownames = FALSE,
+      options  = list(dom = "t")
+    )
+  }
+  
+  # Load cache on startup
+  observe({
+    cache_path <- "data/processed/clinicaltrials_cache.rds"
+    if (file.exists(cache_path)) {
+      tryCatch({
+        source("model/api_clinicaltrials.R", local = TRUE)
+        cached  <- load_trial_cache(cache_path)
+        summary <- summarise_trial_evidence(cached)
+        evidence_data(list(
+          trials         = cached,
+          trial_summary  = summary,
+          pubmed_psych   = NULL,
+          pubmed_tech    = NULL,
+          who_prevalence = NULL,
+          eurostat_pop   = NULL,
+          pull_date      = Sys.Date()
+        ))
+      }, error = function(e) NULL)
+    }
+  })
+  
+  # Refresh button — pulls all APIs live
+  observeEvent(input$run_evidence_btn, {
+    w <- Waiter$new(html = tagList(
+      spin_loaders(15, color = "#1ABC9C"),
+      tags$br(),
+      tags$span(style = "color:#FFFFFF; font-size:14px;",
+                "Pulling live evidence from APIs...")
+    ))
+    w$show()
+    on.exit(w$hide())
+    source("model/api_clinicaltrials.R", local = TRUE)
+    ev <- pull_all_evidence(use_cache = FALSE)
+    evidence_data(ev)
+  })
+  
+  output$evidence_last_updated <- renderUI({
+    ev <- evidence_data()
+    if (is.null(ev)) return(NULL)
+    tags$span(
+      style = "color:#1ABC9C; font-size:12px;",
+      icon("check"),
+      paste("Last updated:", ev$pull_date)
+    )
+  })
+  
+  # Value boxes
+  output$vbox_n_trials <- renderValueBox({
+    ev <- evidence_data()
+    n  <- if (!is.null(ev) && !is.null(ev$trials))
+      nrow(ev$trials) else 0
+    valueBox(n, "Total Trials",
+             icon = icon("flask"), color = "teal")
+  })
+  
+  output$vbox_n_rct <- renderValueBox({
+    ev <- evidence_data()
+    n  <- if (!is.null(ev) && !is.null(ev$trials))
+      sum(grepl("RANDOMIZED|INTERVENTIONAL",
+                toupper(ev$trials$study_type)),
+          na.rm = TRUE) else 0
+    valueBox(n, "Randomised Trials",
+             icon = icon("shuffle"), color = "blue")
+  })
+  
+  output$vbox_n_enrolled <- renderValueBox({
+    ev <- evidence_data()
+    n  <- if (!is.null(ev) && !is.null(ev$trials))
+      formatC(sum(ev$trials$enrollment, na.rm = TRUE),
+              format = "d", big.mark = ",") else "0"
+    valueBox(n, "Total Enrolled",
+             icon = icon("users"), color = "green")
+  })
+  
+  output$vbox_n_pubmed <- renderValueBox({
+    ev <- evidence_data()
+    n  <- 0
+    if (!is.null(ev)) {
+      n1 <- if (!is.null(ev$pubmed_psych))
+        nrow(ev$pubmed_psych) else 0
+      n2 <- if (!is.null(ev$pubmed_tech))
+        nrow(ev$pubmed_tech) else 0
+      n  <- n1 + n2
+    }
+    valueBox(n, "PubMed Articles",
+             icon = icon("book"), color = "purple")
+  })
+  
+  # Trials table
+  output$tbl_trials <- renderDT({
+    ev <- evidence_data()
+    if (is.null(ev) || is.null(ev$trials) ||
+        nrow(ev$trials) == 0)
+      return(empty_dt("No trial data — click Refresh Evidence"))
+    
+    df <- ev$trials
+    if (!is.null(input$ev_category) &&
+        input$ev_category != "All")
+      df <- df[df$search_category == input$ev_category, ]
+    if (!is.null(input$ev_status) &&
+        input$ev_status != "All")
+      df <- df[df$status == input$ev_status, ]
+    
+    df <- df[, c("nct_id", "title", "status", "phase",
+                 "enrollment", "start_date", "completion",
+                 "search_category")]
+    datatable(df,
+              options  = list(pageLength = 15, scrollX = TRUE),
+              rownames = FALSE
+    )
+  })
+  
+  # Evidence summary
+  output$tbl_evidence_summary <- renderDT({
+    ev <- evidence_data()
+    if (is.null(ev) || is.null(ev$trial_summary))
+      return(empty_dt())
+    datatable(ev$trial_summary,
+              options  = list(pageLength = 10),
+              rownames = FALSE
+    )
+  })
+  
+  # PubMed tables
+  output$tbl_pubmed_psych <- renderDT({
+    ev <- evidence_data()
+    if (is.null(ev) || is.null(ev$pubmed_psych))
+      return(empty_dt())
+    datatable(ev$pubmed_psych,
+              caption  = "Psychosocial Interventions",
+              options  = list(pageLength = 10, scrollX = TRUE),
+              rownames = FALSE
+    )
+  })
+  
+  output$tbl_pubmed_tech <- renderDT({
+    ev <- evidence_data()
+    if (is.null(ev) || is.null(ev$pubmed_tech))
+      return(empty_dt())
+    datatable(ev$pubmed_tech,
+              caption  = "Technology Interventions",
+              options  = list(pageLength = 10, scrollX = TRUE),
+              rownames = FALSE
+    )
+  })
+  
+  # WHO table
+  output$tbl_who <- renderDT({
+    ev <- evidence_data()
+    if (is.null(ev) || is.null(ev$who_prevalence))
+      return(empty_dt())
+    datatable(ev$who_prevalence,
+              options  = list(pageLength = 10),
+              rownames = FALSE
+    )
+  })
+  
+  # Eurostat table
+  output$tbl_eurostat <- renderDT({
+    ev <- evidence_data()
+    if (is.null(ev) || is.null(ev$eurostat_pop))
+      return(empty_dt())
+    datatable(ev$eurostat_pop,
+              options  = list(pageLength = 10),
+              rownames = FALSE
+    )
+  })
+  
+} # end server
