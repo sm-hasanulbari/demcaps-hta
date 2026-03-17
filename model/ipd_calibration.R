@@ -2,8 +2,6 @@
 # DEM-CAPS Health-Economic Model
 # File: model/ipd_calibration.R
 # Description: IPD calibration using synthetic data
-# Note: Uses synthetic data generated from published parameters.
-#       Swap generate_synthetic_ipd() for real data when available.
 # =============================================================================
 
 library(dplyr)
@@ -16,7 +14,6 @@ library(purrr)
 
 source("model/parameters.R")
 
-# Ensure dplyr takes priority over MASS
 select  <- dplyr::select
 filter  <- dplyr::filter
 mutate  <- dplyr::mutate
@@ -26,13 +23,6 @@ rename  <- dplyr::rename
 # -----------------------------------------------------------------------------
 # SECTION 1: SYNTHETIC DATA GENERATOR
 # -----------------------------------------------------------------------------
-
-#' Generate synthetic IPD for calibration pipeline
-#'
-#' @param n_patients Integer. Number of simulated patients
-#' @param n_years    Integer. Follow-up duration in years
-#' @param seed       Integer. Random seed for reproducibility
-#' @return Data frame in IPD long format
 
 generate_synthetic_ipd <- function(n_patients = 500,
                                    n_years    = 5,
@@ -75,6 +65,11 @@ generate_synthetic_ipd <- function(n_patients = 500,
     for (yr in 0:n_years) {
       if (state_now == "Death") break
       
+      # FIX: add jitter to visit times
+      # simulates real-world irregular follow-up
+      visit_jitter <- if (yr == 0) 0
+      else runif(1, -0.15, 0.15)
+      
       mmse_val <- runif(1,
                         mmse_ranges[[state_now]][1],
                         mmse_ranges[[state_now]][2])
@@ -91,7 +86,7 @@ generate_synthetic_ipd <- function(n_patients = 500,
       
       visit_list[[yr + 1]] <- data.frame(
         patient_id     = pid,
-        visit_time     = yr,
+        visit_time     = yr + visit_jitter,
         mmse           = round(mmse_val, 1),
         eq5d_index     = round(eq5d_val, 3),
         age            = age_0 + yr,
@@ -130,10 +125,6 @@ generate_synthetic_ipd <- function(n_patients = 500,
 # SECTION 2: HEALTH STATE CLASSIFICATION
 # -----------------------------------------------------------------------------
 
-#' Classify MMSE score into DEM-CAPS health states
-#' @param mmse Numeric vector
-#' @return Character vector of health state labels
-
 classify_health_state <- function(mmse) {
   dplyr::case_when(
     is.na(mmse)  ~ NA_character_,
@@ -144,10 +135,6 @@ classify_health_state <- function(mmse) {
     TRUE         ~ NA_character_
   )
 }
-
-#' Derive state transitions from longitudinal IPD
-#' @param ipd Data frame in long format
-#' @return Data frame with transitions added
 
 derive_transitions <- function(ipd) {
   
@@ -177,12 +164,6 @@ derive_transitions <- function(ipd) {
 # -----------------------------------------------------------------------------
 # SECTION 3: TRANSITION PROBABILITY ESTIMATION
 # -----------------------------------------------------------------------------
-
-#' Estimate transition probability matrix from IPD
-#'
-#' @param ipd_trans  Data frame from derive_transitions()
-#' @param method     Character. "counts" or "multinomial"
-#' @return List with tp_matrix and diagnostics
 
 estimate_transition_matrix <- function(ipd_trans,
                                        method = "counts") {
@@ -291,12 +272,6 @@ estimate_transition_matrix <- function(ipd_trans,
 # SECTION 4: UTILITY ESTIMATION
 # -----------------------------------------------------------------------------
 
-#' Estimate state utilities from IPD EQ-5D data
-#'
-#' @param ipd       Data frame. Full IPD
-#' @param ipd_trans Data frame. IPD with health_state
-#' @return Named list of utilities per state
-
 estimate_utilities_ipd <- function(ipd, ipd_trans) {
   
   ipd_u <- ipd %>%
@@ -337,13 +312,6 @@ estimate_utilities_ipd <- function(ipd, ipd_trans) {
 # -----------------------------------------------------------------------------
 # SECTION 5: INFORMAL CARE COST ESTIMATION
 # -----------------------------------------------------------------------------
-
-#' Estimate informal care costs from IPD hours data
-#'
-#' @param ipd         Data frame. IPD with informal_hours
-#' @param ipd_trans   Data frame. IPD with health_state
-#' @param hourly_rate Numeric. EUR per hour (ZIN 2024)
-#' @return Named list of annual costs per state
 
 estimate_informal_costs_ipd <- function(ipd,
                                         ipd_trans,
@@ -389,12 +357,6 @@ estimate_informal_costs_ipd <- function(ipd,
 # -----------------------------------------------------------------------------
 # SECTION 6: GOODNESS-OF-FIT
 # -----------------------------------------------------------------------------
-
-#' Compute GOF: predicted vs observed state prevalence
-#'
-#' @param tp_cal    Matrix. Calibrated TP matrix
-#' @param ipd_trans Data frame. Observed transitions
-#' @return List with RMSE, MAE and detail data frame
 
 compute_gof <- function(tp_cal, ipd_trans) {
   
@@ -456,10 +418,6 @@ compute_gof <- function(tp_cal, ipd_trans) {
 # SECTION 7: DIAGNOSTIC PLOTS
 # -----------------------------------------------------------------------------
 
-#' Plot observed vs predicted state occupancy
-#' @param gof_result List from compute_gof()
-#' @return ggplot object
-
 plot_gof <- function(gof_result) {
   
   ggplot(gof_result$detail, aes(x = cycle)) +
@@ -472,22 +430,16 @@ plot_gof <- function(gof_result) {
       values = c("Observed"  = "#E74C3C",
                  "Predicted" = "#1ABC9C")) +
     labs(
-      title    = "GOF: Observed vs Predicted State Occupancy",
+      title    = "GOF: Observed vs Predicted",
       subtitle = paste0(
         "RMSE = ", round(gof_result$rmse, 4),
         " | MAE = ", round(gof_result$mae, 4)),
-      x        = "Cycle (Years)",
-      y        = "Proportion",
-      colour   = NULL
+      x = "Cycle", y = "Proportion", colour = NULL
     ) +
     theme_minimal() +
     theme(strip.text      = element_text(face = "bold"),
           legend.position = "bottom")
 }
-
-#' Plot TP matrix heatmap comparison
-#' @param tp_lit Matrix. Literature-based (tp_base)
-#' @param tp_ipd Matrix. IPD-calibrated
 
 plot_tp_comparison <- function(tp_lit = tp_base,
                                tp_ipd) {
@@ -515,7 +467,7 @@ plot_tp_comparison <- function(tp_lit = tp_base,
       limits = c(0, 1)) +
     facet_wrap(~ Source, ncol = 2) +
     scale_x_discrete(position = "top") +
-    labs(title = "TP Matrix: Literature vs IPD-Calibrated",
+    labs(title = "TP Matrix: Literature vs IPD",
          x = "To State", y = "From State") +
     theme_minimal() +
     theme(axis.text.x = element_text(angle = 30,
@@ -527,9 +479,6 @@ plot_tp_comparison <- function(tp_lit = tp_base,
 # SECTION 8: APPLY CALIBRATED PARAMS
 # -----------------------------------------------------------------------------
 
-#' Apply calibrated parameters to model environment
-#' @param cal_path Character. Path to saved .rds file
-
 apply_calibrated_params <- function(
     cal_path = "data/processed/calibrated_params.rds") {
   
@@ -537,9 +486,8 @@ apply_calibrated_params <- function(
     stop(paste("File not found:", cal_path))
   
   cal <- readRDS(cal_path)
-  cat(sprintf(
-    "Loading: %d patients, calibrated %s\n",
-    cal$n_patients, cal$calibration_date))
+  cat(sprintf("Loading: %d patients, calibrated %s\n",
+              cal$n_patients, cal$calibration_date))
   
   assign("tp_base",   cal$tp_matrix, envir = .GlobalEnv)
   assign("utilities", cal$utilities, envir = .GlobalEnv)
@@ -548,7 +496,6 @@ apply_calibrated_params <- function(
   invisible(cal)
 }
 
-#' Reset to literature parameters
 reset_to_literature_params <- function() {
   source("model/parameters.R")
   cat("Reset to literature parameters.\n")
@@ -557,15 +504,6 @@ reset_to_literature_params <- function() {
 # -----------------------------------------------------------------------------
 # SECTION 9: MASTER CALIBRATION PIPELINE
 # -----------------------------------------------------------------------------
-
-#' Run full IPD calibration pipeline
-#'
-#' @param ipd_path  Character. Path to IPD CSV
-#'                  Use NULL to generate synthetic data
-#' @param method_tp Character. "counts" or "multinomial"
-#' @param save_path Character. Output .rds path
-#' @param n_synth   Integer. Patients if synthetic
-#' @return List of calibrated parameters
 
 run_ipd_calibration <- function(
     ipd_path  = NULL,
@@ -576,7 +514,6 @@ run_ipd_calibration <- function(
   cat("=== DEM-CAPS IPD Calibration Pipeline ===\n")
   cat(sprintf("Method: %s\n\n", method_tp))
   
-  # 1. Load or generate data
   if (is.null(ipd_path)) {
     cat("No IPD path — using synthetic data.\n")
     ipd <- generate_synthetic_ipd(
@@ -594,27 +531,18 @@ run_ipd_calibration <- function(
                 length(unique(ipd$patient_id))))
   }
   
-  # 2. Derive transitions
   ipd_trans <- derive_transitions(ipd)
   cat(sprintf("Transitions: %d pairs\n",
               nrow(ipd_trans)))
   
-  # 3. Estimate TP matrix
   tp_result <- estimate_transition_matrix(
     ipd_trans, method = method_tp)
   tp_cal    <- tp_result$tp_matrix
   
-  # 4. Estimate utilities
-  utils_cal <- estimate_utilities_ipd(ipd, ipd_trans)
+  utils_cal    <- estimate_utilities_ipd(ipd, ipd_trans)
+  informal_cal <- estimate_informal_costs_ipd(ipd, ipd_trans)
+  gof          <- compute_gof(tp_cal, ipd_trans)
   
-  # 5. Estimate informal costs
-  informal_cal <- estimate_informal_costs_ipd(
-    ipd, ipd_trans)
-  
-  # 6. Goodness of fit
-  gof <- compute_gof(tp_cal, ipd_trans)
-  
-  # 7. Package
   calibrated <- list(
     tp_matrix        = tp_cal,
     utilities        = utils_cal,
@@ -629,13 +557,11 @@ run_ipd_calibration <- function(
     gof              = gof
   )
   
-  # 8. Save
   dir.create(dirname(save_path),
              showWarnings = FALSE, recursive = TRUE)
   saveRDS(calibrated, save_path)
   cat(sprintf("\nSaved: %s\n", save_path))
   
-  # 9. Summary
   cat("\n=== Calibration Summary ===\n")
   cat(sprintf("Patients:    %d\n", calibrated$n_patients))
   cat(sprintf("Transitions: %d\n", calibrated$n_transitions))
@@ -652,7 +578,6 @@ run_ipd_calibration <- function(
 # SECTION 10: QUICK TEST
 # -----------------------------------------------------------------------------
 
-#' Test full pipeline on synthetic data
 test_ipd_pipeline <- function() {
   
   cat("===== IPD PIPELINE TEST =====\n\n")
