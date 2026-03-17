@@ -8,6 +8,7 @@ library(shinydashboard)
 library(shinyWidgets)
 library(shinycssloaders)
 library(DT)
+library(plotly)
 
 ui <- dashboardPage(
   skin = "black",
@@ -37,8 +38,7 @@ ui <- dashboardPage(
       menuItem("Base-Case",      tabName = "tab_basecase",
                icon = icon("table")),
       menuItem("PSA",            tabName = "tab_psa",
-               icon = icon("chart-scatter",
-                           lib = "font-awesome")),
+               icon = icon("chart-line")),
       menuItem("Sensitivity",    tabName = "tab_sensitivity",
                icon = icon("tornado")),
       menuItem("Scenarios",      tabName = "tab_scenarios",
