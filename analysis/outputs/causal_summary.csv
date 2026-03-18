@@ -1,0 +1,5 @@
+"Method","Estimate","Outcome"
+"PSM (ATT)",-0.031,"EQ-5D utility gain"
+"IPW (ATE)",-0.0046,"EQ-5D utility gain"
+"DiD",-0.0076,"EQ-5D utility gain"
+"G-computation",-0.0042,"EQ-5D utility gain"
