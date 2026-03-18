@@ -21,3 +21,10 @@ data/processed/*.rds
 # Windows
 Thumbs.db
 desktop.ini
+
+# Jupyter
+.ipynb_checkpoints/
+analysis/.ipynb_checkpoints/
+
+# Anaconda
+analysis/anaconda_projects/
